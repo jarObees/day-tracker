@@ -39,17 +39,28 @@ main_frame.grid(row=0, column=0)
 conn = sqlite3.connect(':memory:')
 c = conn.cursor()
 
-c.execute("""CREATE TABLE act_type (
-            
-            """)
 c.execute("""CREATE TABLE activities (
-            type text,
-            start_hour int,
-            start_minute int,
-            end_hour int,
-            end_minute int,
-            date text
-            )""")
+            activity_id INTEGER PRIMARY KEY,
+            name TEXT NOT NULL,
+            start_date TEXT NOT NULL,
+            end_date TEXT NOT NULL,
+            notes TEXT
+            );
+            """)
+c.execute("""CREATE TABLE types (
+            type_id INTEGER PRIMARY KEY,
+            name TEXT NOT NULL
+            );
+            """)
+
+c.execute("""CREATE TABLE activities_types (
+            activity_id INTEGER,
+            type_id INTEGER,
+            PRIMARY KEY (activity_id, type_id)
+            FOREIGN KEY (activity_id) REFERENCES activities(activity_id),
+            FOREIGN KEY (type_id) REFERENCES types(type_id)
+            );
+            """)
 
 def throw_error():
     pass
@@ -76,20 +87,20 @@ def add_activity():
     end_frame.grid(row=5, column=1)
 
     # Start Time Frame Content
-    start_hour = Entry(start_frame, width=10)
+    startHourEntry = Entry(start_frame, width=10)
     Label(start_frame, text="Hour [24]").grid(row=0, column=0)
-    start_hour.grid(row=0, column=1)
-    start_minute = Entry(start_frame, width=10)
+    startHourEntry.grid(row=0, column=1)
+    startMinuteEntry = Entry(start_frame, width=10)
     Label(start_frame, text="Minute").grid(row=1, column=0)
-    start_minute.grid(row=1, column=1)
+    startMinuteEntry.grid(row=1, column=1)
 
     # End Time Frame Content
-    end_hour = Entry(end_frame, width=10)
+    endHourEntry = Entry(end_frame, width=10)
     Label(end_frame, text="Hour [24]").grid(row=0, column=0)
-    end_hour.grid(row=0, column=1)
-    end_minute = Entry(end_frame, width=10)
+    endHourEntry.grid(row=0, column=1)
+    endMinuteEntry = Entry(end_frame, width=10)
     Label(end_frame, text="Minute").grid(row=1, column=0)
-    end_minute.grid(row=1, column=1)
+    endMinuteEntry.grid(row=1, column=1)
 
     # Type of Activity
     type_frame = LabelFrame(add_frame, text="Type of Activity")
@@ -127,17 +138,58 @@ def add_activity():
     def insertData():
         # Sanitize Data
         try:
-            if int(start_hour.get()) not in range(1, 25) or int(end_hour.get()) not in range(1,25):
+            if int(startHourEntry.get()) not in range(1, 25) or int(endHourEntry.get()) not in range(1,25):
                 throw_error()
-            if int(start_minute.get()) not in range(1,61) or int(end_minute.get()) not in range(1,61):
+            if int(startMinuteEntry.get()) not in range(1,61) or int(endMinuteEntry.get()) not in range(1,61):
                 throw_error()
         except:
             Label(root, text="Please insert Start Time/ End Time numbers in appropriate range.", foreground="red").grid(row=9, column=0)
+        try:
+            if int(monthEntry.get()) not in range(1, 13) or int(dayEntry.get()) not in range(1,32):
+                throw_error()
+            int(yearEntry.get())
+        except:
+            Label(root, text="Please insert appropriate Year/Month/Date", foreground="red").grid(row=9,column=0)
+        # TO:DO CLEAN THIS SHIT UP MAKE SURE THE INPUTS WORK
+        def leading_zero(input_str):
+            if len(input_str) < 2:
+                clean_input_str = "0" + input_str
+                return clean_input_str
+            else:
+                return input_str
+        act_month = leading_zero(monthEntry.get())
+        act_day = leading_zero(dayEntry.get())
+        start_hour = leading_zero(startHourEntry.get())
+        start_minute = leading_zero(startMinuteEntry.get())
+        end_hour = leading_zero(endHourEntry.get())
+        end_minute = leading_zero((endMinuteEntry.get()))
+
+        start_date = yearEntry.get() + "-" + act_month + "-" + act_day + " " + start_hour + ":" + start_minute
+        end_date = yearEntry.get() + "-" + act_month + "-" + act_day + " " + end_hour + ":" + end_minute
+
+        # Begin SQLite Inquiries
+        def check_conflicts(start, end):
+            c.execute("""
+            SELECT * 
+            FROM activities
+            WHERE 
+            (? BETWEEN start_date AND end_date)
+            OR
+            (? BETWEEN start_date AND end_date)
+            """), (start, end)
+            conflicting_events = c.fetchall()
+            if conflicting_events:
+                return True
+            else:
+                return False
+
+        if check_conflicts(start_date, end_date):
+            throw_error()
+
         # Insert Data into SQlite database
-        current_activity = Activity()
-        with conn:
+        #with conn:
             # Check to make sure that data in given time frame doesn't exist.
-            c.execute("SELECT * FROM activities WHERE date = ")
+            #c.execute("SELECT * FROM activities WHERE date = ")
             # If it exists, ask if you want to override and if not, do not insert data.
             # Else insert data.
             #
