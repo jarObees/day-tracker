@@ -1,6 +1,7 @@
 from tkinter import *
 from datetime import date
 import sqlite3
+from matplotlib import pyplot as plt
 
 # Get and store local day information into a dict
 local_date = date.today()
@@ -41,7 +42,6 @@ c = conn.cursor()
 
 c.execute("""CREATE TABLE activities (
             activity_id INTEGER PRIMARY KEY,
-            name TEXT NOT NULL,
             start_date TEXT NOT NULL,
             end_date TEXT NOT NULL,
             notes TEXT
@@ -49,7 +49,7 @@ c.execute("""CREATE TABLE activities (
             """)
 c.execute("""CREATE TABLE types (
             type_id INTEGER PRIMARY KEY,
-            name TEXT NOT NULL
+            name TEXT
             );
             """)
 
@@ -61,9 +61,27 @@ c.execute("""CREATE TABLE activities_types (
             FOREIGN KEY (type_id) REFERENCES types(type_id)
             );
             """)
+for value in types_of_activities:
+    c.execute("""
+    INSERT INTO types (name)
+    VALUES (?)
+    """, (value,))
+
+c.execute("""SELECT * FROM types""")
+types_table = c.fetchall()
+print(types_table)
+
 
 def throw_error():
     pass
+
+
+def leading_zero(input_str):
+    if len(input_str) < 2:
+        clean_input_str = "0" + input_str
+        return clean_input_str
+    else:
+        return input_str
 
 def add_activity():
     # Display the Add Activity Menu
@@ -105,10 +123,10 @@ def add_activity():
     # Type of Activity
     type_frame = LabelFrame(add_frame, text="Type of Activity")
     type_frame.grid(row=5, column=2)
-    activity_input = StringVar()
-    activity_input2 = StringVar()
-    type_drop = OptionMenu(type_frame, activity_input, *types_of_activities)
-    type_drop2 = OptionMenu(type_frame, activity_input2, *types_of_activities)
+    activity_type1= StringVar()
+    activity_type2 = StringVar()
+    type_drop = OptionMenu(type_frame, activity_type1, *types_of_activities)
+    type_drop2 = OptionMenu(type_frame, activity_type2, *types_of_activities)
     type_drop.grid(row=0, column=0)
     type_drop2.grid(row=1, column=0)
 
@@ -151,12 +169,6 @@ def add_activity():
         except:
             Label(root, text="Please insert appropriate Year/Month/Date", foreground="red").grid(row=9,column=0)
         # TO:DO CLEAN THIS SHIT UP MAKE SURE THE INPUTS WORK
-        def leading_zero(input_str):
-            if len(input_str) < 2:
-                clean_input_str = "0" + input_str
-                return clean_input_str
-            else:
-                return input_str
         act_month = leading_zero(monthEntry.get())
         act_day = leading_zero(dayEntry.get())
         start_hour = leading_zero(startHourEntry.get())
@@ -167,34 +179,53 @@ def add_activity():
         start_date = yearEntry.get() + "-" + act_month + "-" + act_day + " " + start_hour + ":" + start_minute
         end_date = yearEntry.get() + "-" + act_month + "-" + act_day + " " + end_hour + ":" + end_minute
 
-        # Begin SQLite Inquiries
+        notes = notes_entry.get()
+
+        # Begin SQLite Insertions
         def check_conflicts(start, end):
+            print(start, end)
             c.execute("""
             SELECT * 
             FROM activities
             WHERE 
-            (? BETWEEN start_date AND end_date)
+            (? BETWEEN activities.start_date AND activities.end_date)
             OR
-            (? BETWEEN start_date AND end_date)
-            """), (start, end)
+            (? BETWEEN activities.start_date AND activities.end_date)
+            """, (start, end))
             conflicting_events = c.fetchall()
             if conflicting_events:
+                print("CONFLICT FOUND!")
                 return True
             else:
+                print("NO CONFLICTS!")
                 return False
 
         if check_conflicts(start_date, end_date):
             throw_error()
+        else:
+            c.execute("""
+            INSERT INTO activities (start_date, end_date, notes)
+            VALUES (?, ?, ?)
+            """, (start_date, end_date, notes))
 
-        # Insert Data into SQlite database
-        #with conn:
-            # Check to make sure that data in given time frame doesn't exist.
-            #c.execute("SELECT * FROM activities WHERE date = ")
-            # If it exists, ask if you want to override and if not, do not insert data.
-            # Else insert data.
-            #
+            c.execute("""SELECT last_insert_rowid()""")
+            last_activity_id = c.fetchone()[0]
+            print(last_activity_id)
+            print(type(last_activity_id))
+            print(activity_type1)
+            c.execute("""
+            INSERT INTO activities_types (activity_id, type_id)
+            VALUES (?, 
+                (SELECT type_id FROM types WHERE name = ?)
+            )
+            """, (last_activity_id, activity_type1.get()))
 
-
+            c.execute("""
+            INSERT INTO activities_types(activity_id, type_id)
+            VALUES (?, 
+                (SELECT type_id FROM types WHERE name = ?)
+            )
+            """, (last_activity_id, activity_type2.get()))
 
 
     insert_data_button = Button(add_frame, text="ADD ACTIVITY!", command=insertData, borderwidth=5)
@@ -213,12 +244,71 @@ def edit_activity():
     pass
 
 
+def visualize_activity():
+    # Visualize all the activities from one day on a plot.
+    def oneDay():
+        oneDay_frame = LabelFrame(vis_frame, text="One Day")
+        oneDay_frame.grid(row=1, column=0)
+
+        # Add Date Information
+        titleDay = Label(oneDay_frame, text="Day")
+        dayEntry = Entry(oneDay_frame)
+
+        titleMonth = Label(oneDay_frame, text="Month")
+        monthEntry = Entry(oneDay_frame)
+
+        titleYear = Label(oneDay_frame, text="Year")
+        yearEntry = Entry(oneDay_frame)
+
+        titleDay.grid(row=1, column=0)
+        dayEntry.insert(0, date_dict["day"])
+        dayEntry.grid(row=2, column=0)
+
+        titleMonth.grid(row=1, column=1)
+        monthEntry.insert(0, date_dict["month"])
+        monthEntry.grid(row=2, column=1)
+
+        titleYear.grid(row=1, column=2)
+        yearEntry.insert(0, date_dict["year"])
+        yearEntry.grid(row=2, column=2)
+
+        act_month = leading_zero(monthEntry.get())
+        act_day = leading_zero(dayEntry.get())
+        sel_day = yearEntry.get() + "-" + act_month + "-" + act_day
+
+        # Grab all data from particular day for matplotlib use in the future.
+        c.execute("""SELECT * FROM activities WHERE Date(start_date) = ? """, (sel_day,))
+        one_day_activities = c.fetchall()
+
+        distinct_activities = set()
+        for activity in one_day_activities:
+            activity_id = activity[0]
+            c.execute("""SELECT DISTINCT name 
+                        FROM types 
+                        JOIN activities_types ON types.type_id=activities_types.type_id
+                        WHERE activities_types.activity_id = ?""", (activity_id,))
+            names = c.fetchall()
+            distinct_activities.update(names)
+
+            def make_timeline():
+                fig, ax = plt.subplots()
+                ax.set_y
+                pass
+        pass
+
+    vis_frame = LabelFrame(root, text="Visualize Activity")
+    vis_frame.grid(row=1, column=0)
+    oneDayButton = Button(vis_frame, text="One Day", command=oneDay)
+    oneDayButton.grid(row=0, column=0, padx=20)
+
+
 activityAddButton = Button(main_frame, text="Add Activity", command=add_activity)
 activityRemButton = Button(main_frame, text="Remove Activity", command=rem_activity)
 activityEditButton = Button(main_frame, text="Edit Activity", command=edit_activity)
-
+activityVisualizeButton = Button(main_frame, text="Visualize Activity", command=visualize_activity)
 activityAddButton.grid(row=0, column=0, padx=10)
 activityRemButton.grid(row=0, column=1, padx=10)
 activityEditButton.grid(row=0, column=2, padx=10)
+activityVisualizeButton.grid(row=0, column=3, padx=10)
 
 root.mainloop()
