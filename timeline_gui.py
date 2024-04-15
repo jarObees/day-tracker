@@ -280,6 +280,7 @@ def visualize_activity():
         c.execute("""SELECT * FROM activities WHERE Date(start_date) = ? """, (sel_day,))
         one_day_activities = c.fetchall()
 
+        # Make a set that contains the unique activities of the day.
         distinct_activities = set()
         for activity in one_day_activities:
             activity_id = activity[0]
@@ -287,13 +288,38 @@ def visualize_activity():
                         FROM types 
                         JOIN activities_types ON types.type_id=activities_types.type_id
                         WHERE activities_types.activity_id = ?""", (activity_id,))
-            names = c.fetchall()
+            names = c.fetchone()
+            names = names[0]
             distinct_activities.update(names)
+        # Setup a dictionary with each unique activity as a key.
+        activities = {}
+        for activity in distinct_activities:
+            activities[activity] = []
 
-            def make_timeline():
-                fig, ax = plt.subplots()
-                ax.set_y
-                pass
+        # Add the activity_id to the appropriate activities[key] where the activity_id = activity_key.
+        for activity in one_day_activities:
+            activity_id, start_date, end_date, notes = activity
+            # Get the activity type of activity by joining appropriate table.
+            c.execute("""SELECT name 
+                            FROM types 
+                            JOIN activities_types ON types.type_id=activities_types.type_id
+                            WHERE activities_types.activity_id = ?""", (activity_id,))
+            activity_type = (c.fetchone())[0]
+            activities[activity_type].append(activity_id)
+            
+        def make_timeline():
+            fig, ax = plt.subplots()
+            ax.set_x(0, 24)
+            ax.set_y(4, 4 + 4 * len(distinct_activities))
+            plt.xlabel('Time')
+            plt.ylabel('Activities')
+            plt.title('One Day Analysis')
+
+            counter = 0
+
+                ax.broken_barh([])
+
+            make_timeline()
         pass
 
     vis_frame = LabelFrame(root, text="Visualize Activity")
