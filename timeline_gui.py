@@ -287,16 +287,16 @@ def visualize_activity():
             c.execute("""SELECT DISTINCT name 
                         FROM types 
                         JOIN activities_types ON types.type_id=activities_types.type_id
-                        WHERE activities_types.activity_id = ?""", (activity_id,))
+                        WHERE activities_types.activity_id = ? """, (activity_id,))
             names = c.fetchone()
             names = names[0]
             distinct_activities.update(names)
-        # Setup a dictionary with each unique activity as a key.
+        # Setup a dictionary with each unique activity as a key. Will be pulled from in order to create timeline.
         activities = {}
         for activity in distinct_activities:
             activities[activity] = []
 
-        # Add the activity_id to the appropriate activities[key] where the activity_id = activity_key.
+        # Add an activity_id to the appropriate activities[key].
         for activity in one_day_activities:
             activity_id, start_date, end_date, notes = activity
             # Get the activity type of activity by joining appropriate table.
@@ -306,7 +306,7 @@ def visualize_activity():
                             WHERE activities_types.activity_id = ?""", (activity_id,))
             activity_type = (c.fetchone())[0]
             activities[activity_type].append(activity_id)
-            
+
         def make_timeline():
             fig, ax = plt.subplots()
             ax.set_x(0, 24)
