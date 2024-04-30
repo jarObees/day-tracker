@@ -1,5 +1,5 @@
 from tkinter import *
-from datetime import date
+from datetime import date, datetime
 import sqlite3
 from matplotlib import pyplot as plt
 
@@ -61,6 +61,7 @@ c.execute("""CREATE TABLE activities_types (
             FOREIGN KEY (type_id) REFERENCES types(type_id)
             );
             """)
+
 for value in types_of_activities:
     c.execute("""
     INSERT INTO types (name)
@@ -69,7 +70,35 @@ for value in types_of_activities:
 
 c.execute("""SELECT * FROM types""")
 types_table = c.fetchall()
-print(types_table)
+
+# SAMPLE DATA
+sample_data = [
+    ('2024-04-30 09:30', '2024-04-30 10:30', 'playing games'),
+    ('2024-04-30 12:15', '2024-04-30 14:16', 'more games'),
+    ('2024-04-30 15:30', '2024-04-30 16:30', 'eating linner'),
+    ('2024-05-30 01:30', '2024-05-30 02:30', 'jacking off')
+]
+c.executemany("""
+    INSERT INTO activities (start_date, end_date, notes) 
+    VALUES (?, ?, ?)
+    """, sample_data)
+
+sample_data_activities_types = [
+    (1, 1),
+    (2, 1),
+    (3, 3)
+]
+c.executemany("""
+    INSERT INTO activities_types (activity_id, type_id)
+    VALUES (?, ?)
+    """, sample_data_activities_types)
+
+c.execute(""" SELECT * FROM activities""")
+sample_activities = c.fetchall()
+print(sample_activities)
+c.execute(""" SELECT * FROM activities_types""")
+sample_activities_types = c.fetchall()
+print(sample_activities_types)
 
 
 def throw_error():
@@ -279,25 +308,32 @@ def visualize_activity():
         # Grab all data from particular day for matplotlib use in the future.
         c.execute("""SELECT * FROM activities WHERE Date(start_date) = ? """, (sel_day,))
         one_day_activities = c.fetchall()
-
+        print("ONE DAY ACTIVTITIES:", one_day_activities)
+        print("TYPE: ", type(one_day_activities))
         # Make a set that contains the unique activities of the day.
         distinct_activities = set()
         for activity in one_day_activities:
+            print("current SELECTED ATCIVITY", activity)
             activity_id = activity[0]
             c.execute("""SELECT DISTINCT name 
                         FROM types 
                         JOIN activities_types ON types.type_id=activities_types.type_id
                         WHERE activities_types.activity_id = ? """, (activity_id,))
             names = c.fetchone()
-            names = names[0]
-            distinct_activities.update(names)
+            print("current activity type tuple: ", names)
+            name = names[0]
+            print("only the value : ", name)
+            distinct_activities.add(name)
         # Setup a dictionary with each unique activity as a key. Will be pulled from in order to create timeline.
         activities = {}
+        #print("DISTINCT ACTIVITIES", distinct_activities)
         for activity in distinct_activities:
+            print("DICT: current activity: ", activity)
             activities[activity] = []
-
         # Add an activity_id to the appropriate activities[key].
         for activity in one_day_activities:
+            #print("CURRENT ACTIVITIES DICT STATE: ", activities)
+            #print("CURRENT ACTIVITY :", activity)
             activity_id, start_date, end_date, notes = activity
             # Get the activity type of activity by joining appropriate table.
             c.execute("""SELECT name 
@@ -305,23 +341,45 @@ def visualize_activity():
                             JOIN activities_types ON types.type_id=activities_types.type_id
                             WHERE activities_types.activity_id = ?""", (activity_id,))
             activity_type = (c.fetchone())[0]
+            #print("SQl ACTIVITY TYPE :", activity_type)
             activities[activity_type].append(activity_id)
-
+        print("ALL UNIQUE ACTIVITITES :", activities)
         def make_timeline():
+            BAR_HEIGHT = 2
+            Y_INCREMENT = 4
             fig, ax = plt.subplots()
-            ax.set_x(0, 24)
-            ax.set_y(4, 4 + 4 * len(distinct_activities))
+            bar_count = 0
+            for unique_activity_type in activities:
+                print("unique activity type: ", unique_activity_type)
+                barh_activities = []
+                for activity_id_data in activities[unique_activity_type]:
+                    print("ACTIVITY ID: ", activity_id)
+                    start_time = c.execute("""SELECT start_date FROM activities 
+                    WHERE activity_id = ? """, (activity_id_data,)).fetchone()[0]
+                    start_time = datetime.fromisoformat(start_time)
+
+                    end_time = c.execute("""SELECT end_date FROM activities 
+                    WHERE activity_id = ? """, (activity_id_data,)).fetchone()[0]
+                    end_time = datetime.fromisoformat(end_time)
+
+                    duration = (end_time - start_time)
+
+                    barh_activity = (start_time, duration)
+                    barh_activities.append(barh_activity)
+                # Where on the Y graph this unique activity should be rendered in , and centers it on this value.
+                y_start = Y_INCREMENT*(1 + bar_count) - BAR_HEIGHT / 2
+
+                ax.broken_barh(barh_activities, (y_start, BAR_HEIGHT))
+                bar_count += 1
+            ax.set_yticks([4 + 4 * i for i in range(bar_count)])
             plt.xlabel('Time')
+            plt.xticks(rotation=45)
+
             plt.ylabel('Activities')
             plt.title('One Day Analysis')
-
-            counter = 0
-
-                ax.broken_barh([])
-
-            make_timeline()
-        pass
-
+            plt.grid(True)
+            plt.show()
+        make_timeline()
     vis_frame = LabelFrame(root, text="Visualize Activity")
     vis_frame.grid(row=1, column=0)
     oneDayButton = Button(vis_frame, text="One Day", command=oneDay)
