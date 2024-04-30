@@ -95,10 +95,8 @@ c.executemany("""
 
 c.execute(""" SELECT * FROM activities""")
 sample_activities = c.fetchall()
-print(sample_activities)
 c.execute(""" SELECT * FROM activities_types""")
 sample_activities_types = c.fetchall()
-print(sample_activities_types)
 
 
 def throw_error():
@@ -212,7 +210,6 @@ def add_activity():
 
         # Begin SQLite Insertions
         def check_conflicts(start, end):
-            print(start, end)
             c.execute("""
             SELECT * 
             FROM activities
@@ -239,9 +236,6 @@ def add_activity():
 
             c.execute("""SELECT last_insert_rowid()""")
             last_activity_id = c.fetchone()[0]
-            print(last_activity_id)
-            print(type(last_activity_id))
-            print(activity_type1)
             c.execute("""
             INSERT INTO activities_types (activity_id, type_id)
             VALUES (?, 
@@ -308,32 +302,25 @@ def visualize_activity():
         # Grab all data from particular day for matplotlib use in the future.
         c.execute("""SELECT * FROM activities WHERE Date(start_date) = ? """, (sel_day,))
         one_day_activities = c.fetchall()
-        print("ONE DAY ACTIVTITIES:", one_day_activities)
-        print("TYPE: ", type(one_day_activities))
         # Make a set that contains the unique activities of the day.
         distinct_activities = set()
         for activity in one_day_activities:
-            print("current SELECTED ATCIVITY", activity)
             activity_id = activity[0]
             c.execute("""SELECT DISTINCT name 
                         FROM types 
                         JOIN activities_types ON types.type_id=activities_types.type_id
                         WHERE activities_types.activity_id = ? """, (activity_id,))
             names = c.fetchone()
-            print("current activity type tuple: ", names)
             name = names[0]
-            print("only the value : ", name)
             distinct_activities.add(name)
         # Setup a dictionary with each unique activity as a key. Will be pulled from in order to create timeline.
         activities = {}
-        #print("DISTINCT ACTIVITIES", distinct_activities)
         for activity in distinct_activities:
             print("DICT: current activity: ", activity)
             activities[activity] = []
         # Add an activity_id to the appropriate activities[key].
         for activity in one_day_activities:
-            #print("CURRENT ACTIVITIES DICT STATE: ", activities)
-            #print("CURRENT ACTIVITY :", activity)
+
             activity_id, start_date, end_date, notes = activity
             # Get the activity type of activity by joining appropriate table.
             c.execute("""SELECT name 
@@ -341,7 +328,6 @@ def visualize_activity():
                             JOIN activities_types ON types.type_id=activities_types.type_id
                             WHERE activities_types.activity_id = ?""", (activity_id,))
             activity_type = (c.fetchone())[0]
-            #print("SQl ACTIVITY TYPE :", activity_type)
             activities[activity_type].append(activity_id)
         print("ALL UNIQUE ACTIVITITES :", activities)
         def make_timeline():
@@ -374,7 +360,6 @@ def visualize_activity():
             ax.set_yticks([4 + 4 * i for i in range(bar_count)])
             plt.xlabel('Time')
             plt.xticks(rotation=45)
-
             plt.ylabel('Activities')
             plt.title('One Day Analysis')
             plt.grid(True)
